@@ -1,0 +1,6 @@
+・APIが読めない
+→Live Serverでなくpercelでサーバーを使用
+→曲のURLはhttps://textalive.jp/songsから検索したもののみ
+・JSONが読めない
+→JSONが無くて代わりにindex.html(ビルドによるdev内のファイル)が表示された。
+→今回JSONは固定ファイル(表示のためのデータで、ユーザー操作で書き換えたりしない)なので、importで良かった。

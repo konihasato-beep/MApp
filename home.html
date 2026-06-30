@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Harmonic Ring</title>
+<style>
+  body {
+    margin: 0;
+    background: #000;
+    color: #fff;
+    font-family: sans-serif;
+    text-align: center;
+  }
+  #home {
+    padding-top: 80px;
+  }
+  select, button {
+    padding: 10px 20px;
+    font-size: 18px;
+    margin: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div id="home">
+  <h1>Harmonic Ring</h1>
+  <p>光の環と音符で奏でるインタラクティブMV</p>
+
+  <h3>曲を選択</h3>
+  <select id="songSelect">
+    <option value="https://piapro.jp/t/fnhJ/20230131212038" data-id="ikirukoto">生きること</option>
+    <option value="http://www.youtube.com/watch?v=LtSNzPyo0lA" data-id="mean">ぼくらはみんな意味不明</option>
+    <option value="https://piapro.jp/t/6w5P/202102131900" data-id="39">39（sasakure.UK × DECO*27）</option>
+  </select>
+
+  <br>
+  <button id="startBtn">スタート</button>
+
+  <p style="margin-top:40px; opacity:0.7;">
+    クリックしたままカーソルを動かすと音符を取れます。<br>
+    成功した方向だけ光の環が伸びます。
+  </p>
+</div>
+
+<script>
+document.getElementById("startBtn").onclick = () => {
+  const select = document.getElementById("songSelect");
+  const url = select.value;
+  const id = select.selectedOptions[0].dataset.id;
+
+  localStorage.setItem("selectedSong", url);
+  localStorage.setItem("selectedSongId", id);
+  window.location.href = "play.html";  // 再生画面へ
+};
+</script>
+
+</body>
+</html>

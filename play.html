@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>TextAlive × 光の環プロトタイプ</title>
+<link rel="stylesheet" href="play.css">
+</head>
+<body>
+<img id="bg" src="images/stage.png">
+<canvas id="stage"></canvas>
+
+<img src="images/silhouette_00009.png" id="silhouette" alt="シルエット">
+<div id="lyrics-left" class="lyrics"></div>
+<div id="lyrics-right" class="lyrics"></div>
+<div id="overlay">
+  <img id="playBtn" src="images\playmark2.png" width="250" height="250" alt="play">
+</div>
+<img id="pauseBtn" src="images\pausemark2.png" width="125" height="125" alt="pause">
+
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://unpkg.com/textalive-app-api/dist/index.js"></script>
+<script type="module" src="play.js"></script>
+
+</body>
+</html>

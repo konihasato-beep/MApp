@@ -1,0 +1,6 @@
+{
+  "phrases": [
+    { "lane": "left", "chorus": false },
+    { "lane": "right", "chorus": true }
+  ]
+}
