@@ -11,7 +11,7 @@ const audio = document.createElement("audio");
 document.body.appendChild(audio);
 
 const player = new TextAliveApp.Player({
-  app: { token: "ClEUtPaEsCkG7QBF" },
+  app: { token: "トークン" },
   mediaElement: audio
 });
 
