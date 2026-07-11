@@ -16,7 +16,7 @@ document.body.appendChild(audio);
 let lastPhraseIndex = -1;
 
 const player = new TextAliveApp.Player({
-  app: { token: "ClEUtPaEsCkG7QBF" },
+  app: { token: "" },
   mediaElement: audio
 });
 const vocabMergeList = [
