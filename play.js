@@ -1,6 +1,10 @@
+import * as THREE from "three";
+import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
+import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js";
+
+const fontUrl = new URL("./NotoSerifJP_SemiBold.font", import.meta.url).href;
 // JSON 読み込み
 import lyricConfig from "./data/mean.json";
-
 
 console.log("selectedSong:", localStorage.getItem("selectedSong"));
 
@@ -9,39 +13,63 @@ let phrases = [];
 // TextAlive Player
 const audio = document.createElement("audio");
 document.body.appendChild(audio);
+let lastPhraseIndex = -1;
 
 const player = new TextAliveApp.Player({
-  app: { token: "トークン" },
+  app: { token: "ClEUtPaEsCkG7QBF" },
   mediaElement: audio
 });
+const vocabMergeList = [
+  "一人",
+  "心傷",
+  "分かりきっ",
+  "分かりきってる",
+  "弱さ",
+  "願ってる",
+  "願ってるんだ",
+  "いくんだね"
+
+];
 
 function loadLyricConfig() {
   console.log("loaded config:", lyricConfig);
   return lyricConfig;
 }
 
-function chunkWords(words, maxLen = 8) {
-  const chunks = [];
-  let current = "";
+function mergeWordsByPos(words) {
+  const merged = [];
+  let buffer = null;
 
-  for (let i = 0; i < words.length; i++) {
-    const w = words[i].text;
-    const candidate = current + w;
-
-    if (candidate.length <= maxLen) {
-      current = candidate;
-    } else {
-      chunks.push(current);
-      current = w;
+  words.forEach(word => {
+    const text = word.text;
+    const pos = word.pos; // 品詞情報（TextAliveが提供）
+    console.log("品詞:", word.pos);
+    // ① 名詞（N/M）で辞書にある語なら結合
+    if (buffer && vocabMergeList.includes(buffer.text + text)) {
+      console.log("Listにありました");
+      buffer.text += text;
+      buffer.endTime = word.endTime;
     }
-  }
+    // 助詞・助動詞なら前の語に結合
+    else if (pos === "P" || pos === "X" || pos === "M") {
+      if (buffer) {
+        buffer.text += text;
+        buffer.endTime = word.endTime; // タイミングも伸ばす
+      } else {
+        // 前に語がない場合は単独扱い
+        buffer = { text, startTime: word.startTime, endTime: word.endTime };
+      }
+    } else {
+      // 新しい語が来たら、前の語を確定
+      if (buffer) merged.push(buffer);
+      buffer = { text, startTime: word.startTime, endTime: word.endTime };
+    }
+  });
 
-  if (current.length > 0) {
-    chunks.push(current);
-  }
-
-  return chunks;
+  if (buffer) merged.push(buffer);
+  return merged;
 }
+
 // 再生・停止
 function startPlayback() {
   player.requestPlay();
@@ -60,8 +88,9 @@ function stopPlayback() {
 player.addListener({
   async onAppReady(app) {
     console.log("onAppReady fired");
+    initThree();
     const songUrl = localStorage.getItem("selectedSong");
-    await loadLyricConfig();   // ← JSON 読み込み
+    //await loadLyricConfig();   // ← JSON 読み込み
     player.createFromSongUrl(songUrl);
   },
 
@@ -69,8 +98,9 @@ player.addListener({
     console.log("video ready");
     phrases = [];
     const allPhrases = v.phrases;
-    console.log("allPhrases length:", allPhrases.length);
+    //console.log("allPhrases length:", allPhrases.length);
     console.log("allPhrases:", allPhrases);
+    console.log(v.words[0].text);  // 最初の単語
 
     allPhrases.forEach((p, i) => {
       const cfg = lyricConfig.phrases[i] || {};
@@ -80,8 +110,9 @@ player.addListener({
 
       //chunks.forEach((chunkText, idx) => {//チャンクごとに phrases に追加
         phrases.push({
-          index: i,//ex)フレーズ0のチャンク1 → "0-1"
+          index: i,
           text: p.text,
+          words: p.children,
           start: p.startTime,   // 必要なら word.startTime に変更可
           end: p.endTime,
           lane: cfg.lane || "left",
@@ -93,22 +124,44 @@ player.addListener({
 
     console.log("chunked phrases:", phrases);
   },
-
+  
   onTimeUpdate(position) {
+   
     const current = phrases.find(p => p.start <= position && position < p.end);
     if (!current) return;
+    if (current.index === lastPhraseIndex) return;// フレーズが変わっていないなら何もしない
+    lastPhraseIndex = current.index;
 
-    if (current.lane === "left") {
-      document.getElementById("lyrics-left").textContent = current.text;
-      document.getElementById("lyrics-right").textContent = "";
-    } else {
-      document.getElementById("lyrics-right").textContent = current.text;
-      document.getElementById("lyrics-left").textContent = "";
-    }
+    const container = document.getElementById("lyrics");
+    container.innerHTML = "";
+    const fullText = current.text;
+    const words = current.words; //単語配列
+    /*[                    ↑
+  { text: "あれ", startTime: 1000, endTime: 1500 },
+  { text: "いつから", startTime: 1500, endTime: 2000 },
+  { text: "ここ", startTime: 2000, endTime: 2300 },
+  { text: "に", startTime: 2300, endTime: 2400 },
+  { text: "いるんだっけ", startTime: 2400, endTime: 3000 }
+]*/
+    console.log(current.text);
+    const mergedWords = mergeWordsByPos(words);
+    console.log("まとめ:",mergedWords);
+    mergedWords.forEach((word, i) => {//forEach で単語wordsを1つずつ取り出す
+      const span = document.createElement("span");
+      span.className = "word";
+      span.textContent = word.text;
 
-    if (current.chorus) {
-      // サビ演出
-    }
+      span.dataset.wordIndex = i;// Wordを紐づける data-word="単語"
+  
+      span.addEventListener("click", () => {// クリックイベント
+        const w = mergedWords[span.dataset.wordIndex];
+        console.log("クリックされた単語:", w.text);
+      });
+      container.appendChild(span);
+    });
+    
+    // container.innerHTML = html;//タグの中を書き換える
+    // document.getElementById("lyrics").textContent = current.text;
   }
 });
 
@@ -116,31 +169,72 @@ document.getElementById("overlay").onclick = startPlayback;
 document.getElementById("playBtn").onclick = startPlayback;
 document.getElementById("pauseBtn").onclick = stopPlayback;
 
-// Three.js はそのまま
+// ===== Three.js 部分　=====
 
-// ===== Three.js 部分（import 不要） =====
+let scene, camera, renderer;
+let textMesh;
+let loadedFont;
 
-const canvas = document.getElementById("stage");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setClearColor(0x000000, 1);
+function initThree() {
+  scene = new THREE.Scene();// 3D空間
+  camera = new THREE.PerspectiveCamera(// カメラ
+    75,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
+  );
+  camera.position.z = 70;
 
-const scene = new THREE.Scene();
+  //<canvas> が body の最後に追加される
+  renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
 
-const camera = new THREE.PerspectiveCamera(
-  60,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
-camera.position.set(0, 0, 5);
+  // ライト
+  const ambient = new THREE.AmbientLight(0xffffff, 0.8);
+  //scene.add(ambient);
+  const light = new THREE.PointLight(0xffffff, 2);
+  light.position.set(100, 100, 100);
+  //scene.add(light);
 
-const light = new THREE.AmbientLight(0xffffff, 0.2);
-scene.add(light);
+  // フォント読み込み
+  const loader = new FontLoader();
+  loader.load(
+    fontUrl,
+    (font) => {
+      console.log("Font loaded!");
+      loadedFont = font;
+      showText("あ");   // ← フォント読み込み後に表示
+    },
+    undefined,
+    (err) => {
+      console.error("Font load error:", err);
+    }
+  );
+
+  animate();
+}
 
 function animate() {
-  renderer.render(scene, camera);
   requestAnimationFrame(animate);
+  renderer.render(scene, camera);
 }
-animate();
+function showText(text) {
+  if (!loadedFont) return;
+
+  const shapes = loadedFont.generateShapes(text, 7); // size=7
+  const geometry = new THREE.ShapeGeometry(shapes);
+
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    side: THREE.DoubleSide
+  });
+
+  textMesh = new THREE.Mesh(geometry, material);
+  textMesh.position.set(0, 0, 0);
+  scene.add(textMesh);
+
+}
+
+
 
