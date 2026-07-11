@@ -1,6 +1,19 @@
 ・APIが読めない
 →Live Serverでなくpercelでサーバーを使用
-→曲のURLはhttps://textalive.jp/songsから検索したもののみ
+→曲のURLはhttps://textalive.jp/songsから検索したもののみだった
+
 ・JSONが読めない
 →JSONが無くて代わりにindex.html(ビルドによるdev内のファイル)が表示された。
 →今回JSONは固定ファイル(表示のためのデータで、ユーザー操作で書き換えたりしない)なので、importで良かった。
+
+・単語取得できない
+→phraseからはchildrenで取得
+
+・JSONが読めない(前回と同じでファイルが見つからなくて代わりにHTMLが返される現象)
+→開発者ツール→ネットワーク→FilterにNotoSerifJP_SemiBold.jsonして更新→Status項目が404でなく304→パスは成功してる証拠
+→エラー文「ncaught (in promise) SyntaxError: Unexpected token '/', "// modules"... is not valid JSON」
+　→中身が「// modules」で始まってるのはおかしいということ
+　　→Parcel(サーバー用)がJSONをそのままのJSONではなくJavaScriptモジュールに変換して返してる
+→.typeface.jsonにしてJSONからJSへの変換を止める→.typeface.jsonは.json形式と同じ挙動で意味なし
+→最初からESMに変換しない形式にする
+　→NotoSerifJP_SemiBold.json→NotoSerifJP_SemiBold.fontに直す→成功
