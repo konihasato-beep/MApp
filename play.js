@@ -5,37 +5,57 @@ import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js";
 const fontUrl = new URL("./NotoSerifJP_SemiBold.font", import.meta.url).href;
 // JSON 読み込み
 import lyricConfig from "./data/mean.json";
+import effectConfig from "./data/effect.json";
 
 console.log("selectedSong:", localStorage.getItem("selectedSong"));
 
 let phrases = [];
+let lyricMeshes = [];
+let needReset3D = false;
+let start_next = 0;
+//const count = 0;
 
 // TextAlive Player
 const audio = document.createElement("audio");
 document.body.appendChild(audio);
+const lyricMeshByIndex = Array(18).fill(null);
 let lastPhraseIndex = -1;
 
 const player = new TextAliveApp.Player({
-  app: { token: "" },
+  app: { token: "ClEUtPaEsCkG7QBF" },
   mediaElement: audio
 });
+
+function getEffectCount(index) {
+  const item = effectConfig.phrases.find(p => p.index === index);
+  
+  return item ? item.count : 0;
+  
+}
+function loadLyricConfig() {
+  console.log("loaded config:", lyricConfig);
+  return lyricConfig;
+}
 const vocabMergeList = [
   "一人",
   "心傷",
+  "与えられ",
+  "与えられた",
   "分かりきっ",
   "分かりきってる",
   "弱さ",
   "願ってる",
   "願ってるんだ",
-  "いくんだね"
-
+  "いくんだね",
+  "縋って",
+  "縋ってい",
+  "縋っていた"
+  
 ];
-
-function loadLyricConfig() {
-  console.log("loaded config:", lyricConfig);
-  return lyricConfig;
-}
-
+const mergeExceptionList = [
+  "不甲斐ないなんて",
+  "縋っていただけ"
+];
 function mergeWordsByPos(words) {
   const merged = [];
   let buffer = null;
@@ -46,20 +66,27 @@ function mergeWordsByPos(words) {
     console.log("品詞:", word.pos);
     // ① 名詞（N/M）で辞書にある語なら結合
     if (buffer && vocabMergeList.includes(buffer.text + text)) {
-      console.log("Listにありました");
+      console.log("Listにありました",buffer.text + text);
       buffer.text += text;
       buffer.endTime = word.endTime;
     }
     // 助詞・助動詞なら前の語に結合
-    else if (pos === "P" || pos === "X" || pos === "M") {
-      if (buffer) {
+    else if (pos === "P" || pos === "X" || pos === "M" ) { //&& !mergeExceptionList.includes(buffer.text += text)
+      if(mergeExceptionList.includes(buffer.text + text)){
+        if (buffer) merged.push(buffer);
+        buffer = { text, startTime: word.startTime, endTime: word.endTime };
+        return;
+      }
+      else if (buffer) {
         buffer.text += text;
         buffer.endTime = word.endTime; // タイミングも伸ばす
-      } else {
+      } 
+      else {
         // 前に語がない場合は単独扱い
         buffer = { text, startTime: word.startTime, endTime: word.endTime };
       }
-    } else {
+    } 
+    else {
       // 新しい語が来たら、前の語を確定
       if (buffer) merged.push(buffer);
       buffer = { text, startTime: word.startTime, endTime: word.endTime };
@@ -96,6 +123,7 @@ player.addListener({
 
   onVideoReady(v) {
     console.log("video ready");
+    show3DText("気が付いても気が付いてもどうでもいい",0);
     phrases = [];
     const allPhrases = v.phrases;
     //console.log("allPhrases length:", allPhrases.length);
@@ -130,7 +158,15 @@ player.addListener({
     const current = phrases.find(p => p.start <= position && position < p.end);
     if (!current) return;
     if (current.index === lastPhraseIndex) return;// フレーズが変わっていないなら何もしない
-    lastPhraseIndex = current.index;
+  
+    if (current.index !== lastPhraseIndex) {
+      needReset3D = true;
+      requestAnimationFrame(() => {
+        lyricMeshes.forEach(m => scene.remove(m));
+        lyricMeshes = [];
+      });
+      lastPhraseIndex = current.index;
+    }
 
     const container = document.getElementById("lyrics");
     container.innerHTML = "";
@@ -144,22 +180,27 @@ player.addListener({
   { text: "いるんだっけ", startTime: 2400, endTime: 3000 }
 ]*/
     console.log(current.text);
+    console.log(current.index);
+    const count = getEffectCount(current.index);
+    console.log("演出対象の数:", count);
     const mergedWords = mergeWordsByPos(words);
     console.log("まとめ:",mergedWords);
     mergedWords.forEach((word, i) => {//forEach で単語wordsを1つずつ取り出す
       const span = document.createElement("span");
       span.className = "word";
-      span.textContent = word.text;
+      span.textContent = word.text; 
+      start_next = 0;
 
       span.dataset.wordIndex = i;// Wordを紐づける data-word="単語"
   
       span.addEventListener("click", () => {// クリックイベント
         const w = mergedWords[span.dataset.wordIndex];
         console.log("クリックされた単語:", w.text);
+       
+        show3DText(w.text,count);
       });
       container.appendChild(span);
     });
-    
     // container.innerHTML = html;//タグの中を書き換える
     // document.getElementById("lyrics").textContent = current.text;
   }
@@ -169,7 +210,7 @@ document.getElementById("overlay").onclick = startPlayback;
 document.getElementById("playBtn").onclick = startPlayback;
 document.getElementById("pauseBtn").onclick = stopPlayback;
 
-// ===== Three.js 部分　=====
+//                                                     Three.js 部分　
 
 let scene, camera, renderer;
 let textMesh;
@@ -177,13 +218,14 @@ let loadedFont;
 
 function initThree() {
   scene = new THREE.Scene();// 3D空間
-  camera = new THREE.PerspectiveCamera(// カメラ
+  camera = new THREE.PerspectiveCamera(
     75,
     window.innerWidth / window.innerHeight,
     0.1,
     1000
   );
-  camera.position.z = 70;
+  camera.position.set(0, 0, 90);
+  camera.lookAt(0, 0, 0);
 
   //<canvas> が body の最後に追加される
   renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
@@ -204,7 +246,7 @@ function initThree() {
     (font) => {
       console.log("Font loaded!");
       loadedFont = font;
-      showText("あ");   // ← フォント読み込み後に表示
+      //showText("あいうえお");   // ← フォント読み込み後に表示
     },
     undefined,
     (err) => {
@@ -217,23 +259,85 @@ function initThree() {
 
 function animate() {
   requestAnimationFrame(animate);
+  // if (needReset3D) {
+  //   lyricMeshes.forEach(m => scene.remove(m));
+  //   lyricMeshes = [];
+  //   needReset3D = false;
+  // }
   renderer.render(scene, camera);
 }
-function showText(text) {
+const lyricPositions = [//必要な分追加
+  { x: -65, y: 30, z: 30 ,rotation_y: 0.6},//0
+  { x: -85, y: 28, z: -15 ,rotation_y: -0.3},//1
+  { x: -80, y: 5, z: 5 ,rotation_y: 0.3},//2
+  { x: -40, y: -10, z: 35 ,rotation_y: -0.4},//3
+  { x: -80, y: -25, z: 15 ,rotation_y: 0.4},//4
+  { x: -90, y: -50, z: -15 ,rotation_y: -0.2}, //5
+
+  { x: 32, y: 20, z: 40 ,rotation_y: 0.4},//6
+  { x: 67, y: 13, z: 10 ,rotation_y: -0.3},//7
+  { x: 65, y: -5, z: 5 , rotation_y: 0.3},//8
+  { x: 50, y: -10, z: 35 ,rotation_y: -0.5},//9
+  { x: 50, y: -25, z: 20 ,rotation_y: 0.4},//10
+  { x: 90, y: -55, z: -17 ,rotation_y: -0.2},//11
+
+  { x: -15, y: 30, z: 30 ,rotation_y: 0.6},//12
+  { x: 5, y: 25, z: -15 ,rotation_y: -0.3},//13
+  { x: -33, y: 10, z: 5 ,rotation_y: 0.3},//14
+  { x: 10, y: -6, z: 35 ,rotation_y: -0.5},//15
+  { x: -17, y: -28, z: 15 ,rotation_y: 0.4},//16
+  { x: 5, y: -50, z: -15 ,rotation_y: -0.2} //17
+];
+function show3DText(text, cnt) {
   if (!loadedFont) return;
 
-  const shapes = loadedFont.generateShapes(text, 7); // size=7
-  const geometry = new THREE.ShapeGeometry(shapes);
+  const chars = [...text]; //文字列を1文字ずつの配列に変換
+  const len = chars.length;//文字数(長さ)
 
-  const material = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    side: THREE.DoubleSide
+  //const start = Math.floor((6 - len) / 2);// 中央寄せの開始位置
+  let start = 0;
+  start = start_next;
+  if(cnt === 1){
+    start = 12;
+  }
+  start_next = start;
+  // if (len === 1){
+  //   start = 0;
+  // }
+  
+  chars.forEach((char, i) => {
+    const size = 7;
+    const shapes = loadedFont.generateShapes(char, size);// size=7
+    const geometry = new THREE.ShapeGeometry(shapes);
+
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      side: THREE.DoubleSide
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+
+    //index はここで自動で Number（整数）
+    const index = start + i;
+    const pos = lyricPositions[index];//指定した位置
+
+    const oldMesh = lyricMeshByIndex[index];
+    if (oldMesh) {
+      scene.remove(oldMesh);
+    }
+    mesh.position.set(pos.x, pos.y, pos.z+5);
+    mesh.rotation.y = pos.rotation_y;
+
+    // クリックできるよう保存
+    mesh.userData.index = index;
+    mesh.userData.char = char;
+
+    lyricMeshes.push(mesh);
+    lyricMeshByIndex[index] = mesh;
+    scene.add(mesh);
   });
-
-  textMesh = new THREE.Mesh(geometry, material);
-  textMesh.position.set(0, 0, 0);
-  scene.add(textMesh);
-
+  start_next = start_next + 6;
+  if (start_next > 17)start_next = start_next - 18;
 }
 
 
