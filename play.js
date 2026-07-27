@@ -22,7 +22,7 @@ const lyricMeshByIndex = Array(18).fill(null);
 let lastPhraseIndex = -1;
 
 const player = new TextAliveApp.Player({
-  app: { token: "ClEUtPaEsCkG7QBF" },
+  app: { token: "" },
   mediaElement: audio
 });
 
